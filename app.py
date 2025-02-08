@@ -58,7 +58,24 @@ def analyze_tracs_failure(data_file, link_sections_file):
     # Filter rows where any failure criterion is applied
     failing_rows = df_filtered[df_filtered['Failure Criterion'].notnull()]
 
-    return failing_rows if not failing_rows.empty else None
+    # For link sections that do not fail any condition, add a row indicating "NO TRACS FAILURE"
+    non_failing_sections = link_sections[~link_sections.isin(failing_rows["Link section"])]
+    no_failure_rows = pd.DataFrame({
+        "Link section": non_failing_sections,
+        "Start Chainage": ["N/A"] * len(non_failing_sections),
+        "End Chainage": ["N/A"] * len(non_failing_sections),
+        "Lane": ["N/A"] * len(non_failing_sections),
+        "Max Rut": ["N/A"] * len(non_failing_sections),
+        "Texture": ["N/A"] * len(non_failing_sections),
+        "Max LPV 3m": ["N/A"] * len(non_failing_sections),
+        "Max LPV 10m": ["N/A"] * len(non_failing_sections),
+        "Failure Criterion": ["NO TRACS FAILURE"] * len(non_failing_sections)
+    })
+
+    # Combine failing rows and non-failing rows
+    all_results = pd.concat([failing_rows, no_failure_rows])
+
+    return all_results if not all_results.empty else None
 
 # Streamlit UI
 st.title("TRACS Failure Analysis")
@@ -75,7 +92,7 @@ if data_file and link_sections_file:
         result = analyze_tracs_failure(data_file, link_sections_file)
 
         if result is not None:
-            st.subheader("TRACS Failing Sections")
+            st.subheader("TRACS Failure Analysis Results")
             st.dataframe(result)  # Show data in table
 
             # Convert DataFrame to CSV
