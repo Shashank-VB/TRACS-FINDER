@@ -1,0 +1,4 @@
+Streamlit
+Pandas
+Math
+openpyxl
