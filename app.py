@@ -42,13 +42,21 @@ def analyze_tracs_failure(data_file, link_sections_file):
         st.warning("No matching link sections found in the data file.")
         return None
 
-    # Apply failure conditions
-    failing_rows = df_filtered[
-        (df_filtered["Max Rut"] >= 15) |
-        (df_filtered["Texture"] < 0.8) |
-        ((df_filtered["Max LPV 3m"] > 3.9) & (df_filtered["Max LPV 3m"] < 5.5)) |
-        ((df_filtered["Max LPV 10m"] > 15.7) & (df_filtered["Max LPV 10m"] < 22.8))
-    ]
+    # Initialize a new column for the failure criterion
+    df_filtered['Failure Criterion'] = None
+
+    # Apply failure conditions and assign failure criteria
+    df_filtered.loc[df_filtered["Max Rut"] >= 15, 'Failure Criterion'] = 'Rut Failure'
+    df_filtered.loc[df_filtered["Texture"] < 0.8, 'Failure Criterion'] = 'Texture Failure'
+    df_filtered.loc[
+        (df_filtered["Max LPV 3m"] > 3.9) & (df_filtered["Max LPV 3m"] < 5.5), 
+        'Failure Criterion'] = 'LPV 3m Failure'
+    df_filtered.loc[
+        (df_filtered["Max LPV 10m"] > 15.7) & (df_filtered["Max LPV 10m"] < 22.8), 
+        'Failure Criterion'] = 'LPV 10m Failure'
+
+    # Filter rows where any failure criterion is applied
+    failing_rows = df_filtered[df_filtered['Failure Criterion'].notnull()]
 
     return failing_rows if not failing_rows.empty else None
 
