@@ -58,8 +58,13 @@ def analyze_tracs_failure(data_file, link_sections_file):
     # Filter rows where any failure criterion is applied
     failing_rows = df_filtered[df_filtered['Failure Criterion'].notnull()]
 
-    # For link sections that do not fail any condition, add a row indicating "NO TRACS FAILURE"
-    non_failing_sections = link_sections[~link_sections.isin(failing_rows["Link section"])]
+    # Handle non-failing sections only if failing_rows is not empty
+    if not failing_rows.empty:
+        non_failing_sections = link_sections[~link_sections.isin(failing_rows["Link section"])]
+    else:
+        non_failing_sections = link_sections
+
+    # Create rows for non-failing sections
     no_failure_rows = pd.DataFrame({
         "Link section": non_failing_sections,
         "Start Chainage": ["N/A"] * len(non_failing_sections),
@@ -74,6 +79,13 @@ def analyze_tracs_failure(data_file, link_sections_file):
 
     # Combine failing rows and non-failing rows
     all_results = pd.concat([failing_rows, no_failure_rows])
+
+    # Reorder columns to place "Failure Criterion" to the right of "Link section"
+    column_order = [
+        "Link section", "Failure Criterion", "Start Chainage", "End Chainage", "Lane",
+        "Max Rut", "Texture", "Max LPV 3m", "Max LPV 10m"
+    ]
+    all_results = all_results[column_order]
 
     return all_results if not all_results.empty else None
 
