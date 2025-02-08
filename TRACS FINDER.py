@@ -1,56 +1,79 @@
 import streamlit as st
-import requests
-import time
-import math
 import pandas as pd
-import os 
+from io import BytesIO
 
+# Function to analyze TRACS failure
+def analyze_tracs_failure(data_file, link_sections_file):
+    # Load data
+    df = pd.read_excel(data_file)
+    link_sections_df = pd.read_excel(link_sections_file)
 
-# Function to load the Excel file
-def load_excel(file_path):
-    return pd.read_excel(file_path)
+    # Ensure "Link section" column exists in the uploaded list
+    if "Link section" not in link_sections_df.columns:
+        st.error("The uploaded link sections file must contain a 'Link section' column.")
+        return None
 
-# Function to filter the data based on the link section
-def filter_by_link_section(data, link_section):
-    return data[data['link_section'] == link_section]
+    # Extract unique link sections
+    link_sections = link_sections_df["Link section"].dropna().unique()
 
-# Function to find failing data based on rutting and texture conditions
-def find_failing_sections(filtered_data):
-    # Rutting > 10 and Texture < 0.8 are considered failing
-    failing_data = filtered_data[
-        (filtered_data['rutting'] > 10) &
-        (filtered_data['texture'] < 0.8)
+    # Ensure required columns exist in the main data file
+    required_columns = [
+        "Link section", "Start Chainage", "End Chainage", "Lane", 
+        "Max Rut", "Texture", "Max LPV 3m", "Max LPV 10m"
     ]
-    return failing_data
+    
+    missing_cols = [col for col in required_columns if col not in df.columns]
+    if missing_cols:
+        st.error(f"Missing columns in data file: {', '.join(missing_cols)}")
+        return None
 
-# Function to display the failing sections
-def display_failing_sections(failing_data):
-    if failing_data.empty:
-        print("No failing sections found for the given link section.")
-    else:
-        print("Failing sections:")
-        print(failing_data[['lane', 'chainage_start', 'chainage_end', 'rutting', 'texture']])
+    # Filter data based on link sections
+    df_filtered = df[df["Link section"].isin(link_sections)]
 
-# Main function to handle the input and processing
-def main():
-    # Setup argparse to handle command-line inputs
-    parser = argparse.ArgumentParser(description="Excel Data Tool for Finding Failing Sections")
-    parser.add_argument("file", help="Path to the Excel file")
-    parser.add_argument("link_section", help="Link section to search for failures")
+    if df_filtered.empty:
+        st.warning("No matching link sections found in the data file.")
+        return None
 
-    args = parser.parse_args()
+    # Apply failure conditions
+    failing_rows = df_filtered[
+        (df_filtered["Max Rut"] >= 15) |
+        (df_filtered["Texture"] < 0.8) |
+        ((df_filtered["Max LPV 3m"] > 3.9) & (df_filtered["Max LPV 3m"] < 5.5)) |
+        ((df_filtered["Max LPV 10m"] > 15.7) & (df_filtered["Max LPV 10m"] < 22.8))
+    ]
 
-    # Load the Excel file
-    data = load_excel(args.file)
+    return failing_rows if not failing_rows.empty else None
 
-    # Filter the data by the link section
-    filtered_data = filter_by_link_section(data, args.link_section)
+# Streamlit UI
+st.title("TRACS Failure Analysis")
+st.write("Upload your **data file** and **list of link sections** to analyze.")
 
-    # Find the failing sections
-    failing_data = find_failing_sections(filtered_data)
+# File Uploads
+data_file = st.file_uploader("Upload Data File (Excel)", type=["xlsx"])
+link_sections_file = st.file_uploader("Upload Link Sections File (Excel)", type=["xlsx"])
 
-    # Display the results
-    display_failing_sections(failing_data)
+if data_file and link_sections_file:
+    st.success("Files uploaded successfully. Click the button to analyze.")
+    
+    if st.button("Analyze TRACS Failure"):
+        result = analyze_tracs_failure(data_file, link_sections_file)
 
-if __name__ == "__main__":
-    main()
+        if result is not None:
+            st.subheader("TRACS Failing Sections")
+            st.dataframe(result)  # Show data in table
+
+            # Convert DataFrame to CSV
+            csv_buffer = BytesIO()
+            result.to_csv(csv_buffer, index=False)
+            csv_buffer.seek(0)
+
+            st.download_button(
+                label="Download TRACS Failure Report",
+                data=csv_buffer,
+                file_name="TRACS_Failure_Report.csv",
+                mime="text/csv"
+            )
+        else:
+            st.success("No TRACS failure detected!")
+
+# Run with: `streamlit run app.py`
