@@ -12,6 +12,10 @@ def analyze_tracs_failure(data_file, link_sections_file):
         st.error(f"Error reading the files: {e}")
         return None
 
+    # Clean column names by stripping any leading/trailing spaces
+    df.columns = df.columns.str.strip()
+    link_sections_df.columns = link_sections_df.columns.str.strip()
+
     # Ensure "Link section" column exists in the uploaded list
     if "Link section" not in link_sections_df.columns:
         st.error("The uploaded link sections file must contain a 'Link section' column.")
