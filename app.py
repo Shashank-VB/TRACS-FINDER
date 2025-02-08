@@ -5,9 +5,9 @@ from io import BytesIO
 # Function to analyze TRACS failure
 def analyze_tracs_failure(data_file, link_sections_file):
     try:
-        # Load data
-        df = pd.read_excel(data_file)
-        link_sections_df = pd.read_excel(link_sections_file)
+        # Load data from CSV files
+        df = pd.read_csv(data_file)
+        link_sections_df = pd.read_csv(link_sections_file)
     except Exception as e:
         st.error(f"Error reading the files: {e}")
         return None
@@ -50,11 +50,11 @@ def analyze_tracs_failure(data_file, link_sections_file):
 
 # Streamlit UI
 st.title("TRACS Failure Analysis")
-st.write("Upload your **data file** and **list of link sections** to analyze.")
+st.write("Upload your **data file (CSV format)** and **list of link sections** to analyze.")
 
 # File Uploads
-data_file = st.file_uploader("Upload Data File (Excel)", type=["xlsx"])
-link_sections_file = st.file_uploader("Upload Link Sections File (Excel)", type=["xlsx"])
+data_file = st.file_uploader("Upload Data File (CSV)", type=["csv"])
+link_sections_file = st.file_uploader("Upload Link Sections File (CSV)", type=["csv"])
 
 if data_file and link_sections_file:
     st.success("Files uploaded successfully. Click the button to analyze.")
