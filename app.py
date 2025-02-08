@@ -4,9 +4,13 @@ from io import BytesIO
 
 # Function to analyze TRACS failure
 def analyze_tracs_failure(data_file, link_sections_file):
-    # Load data
-    df = pd.read_excel(data_file)
-    link_sections_df = pd.read_excel(link_sections_file)
+    try:
+        # Load data
+        df = pd.read_excel(data_file)
+        link_sections_df = pd.read_excel(link_sections_file)
+    except Exception as e:
+        st.error(f"Error reading the files: {e}")
+        return None
 
     # Ensure "Link section" column exists in the uploaded list
     if "Link section" not in link_sections_df.columns:
@@ -75,5 +79,3 @@ if data_file and link_sections_file:
             )
         else:
             st.success("No TRACS failure detected!")
-
-# Run with: `streamlit run app.py`
