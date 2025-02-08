@@ -9,12 +9,10 @@ st.title("Polished Stone Value (PSV) Calculator Results")
 # Input parameters
 st.sidebar.title ("Polished Stone Value (PSV) Calculator")
 st.sidebar.header ("Enter values:")
-link_section = st.sidebar.text_input("Enter Link Section:")
 aadt_value = st.sidebar.number_input("enter AADT value:", min_value=0)
 per_hgvs = st.sidebar.number_input("enter % of HGVs:")
 year = st.sidebar.number_input("enter Year", min_value=0)
 lanes = st.sidebar.number_input("enter number of Lanes", min_value=1)
-
 
 pcvl = 0
 lane1 = 0
@@ -199,7 +197,6 @@ st.write("PSV Lane 3:", result3)
 
 # Create a DataFrame with results
 results_data = {
-    'Link Section': [link_section] , # Add Link Section to the results,
     'AADT_HGVS': [AADT_HGVS],
     'Design Period': [design_period],
     'Total Projected AADT HGVs': [total_projected_aadt_hgvs],
@@ -213,8 +210,7 @@ results_data = {
     'Lane 4 Details': [lane_details_lane4],
     'PSV Lane 1': [result if uploaded_file is not None else 'NA'],
     'PSV Lane 2': [result2 if uploaded_file is not None else 'NA'],
-    'PSV Lane 3': [result3 if uploaded_file is not None else 'NA'],
-    
+    'PSV Lane 3': [result3 if uploaded_file is not None else 'NA']
 }
 
 # Convert to DataFrame
