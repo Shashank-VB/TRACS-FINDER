@@ -22,7 +22,7 @@ def analyze_tracs_failure(data_file, link_sections_file):
         return None
 
     # Extract unique link sections
-    link_sections = link_sections_df["Link section"].dropna().unique()
+    link_sections = pd.Series(link_sections_df["Link section"].dropna().unique())  # Convert to pandas Series
 
     # Ensure required columns exist in the main data file
     required_columns = [
