@@ -5,9 +5,9 @@ from io import BytesIO
 # Function to analyze TRACS failure
 def analyze_tracs_failure(data_file, link_sections_file):
     try:
-        # Load data from CSV files
-        df = pd.read_csv(data_file)
-        link_sections_df = pd.read_csv(link_sections_file)
+        # Attempt to read CSV files with different encodings
+        df = pd.read_csv(data_file, encoding='ISO-8859-1')
+        link_sections_df = pd.read_csv(link_sections_file, encoding='ISO-8859-1')
     except Exception as e:
         st.error(f"Error reading the files: {e}")
         return None
