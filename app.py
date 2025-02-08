@@ -1,122 +1,151 @@
-import streamlit as st
 import pandas as pd
-from io import BytesIO
+import math
+import streamlit as st
+import io
 
-# Function to analyze TRACS failure
-def analyze_tracs_failure(data_file, link_sections_file):
-    try:
-        # Attempt to read CSV files with different encodings
-        df = pd.read_csv(data_file, encoding='ISO-8859-1')
-        link_sections_df = pd.read_csv(link_sections_file, encoding='ISO-8859-1')
-    except Exception as e:
-        st.error(f"Error reading the files: {e}")
-        return None
+# Title
+st.title("Polished Stone Value (PSV) Calculator Results")
 
-    # Clean column names by stripping any leading/trailing spaces
-    df.columns = df.columns.str.strip()
-    link_sections_df.columns = link_sections_df.columns.str.strip()
+# Input parameters
+st.sidebar.title("Polished Stone Value (PSV) Calculator")
+st.sidebar.header("Enter values:")
 
-    # Ensure "Link section" column exists in the uploaded list
-    if "Link section" not in link_sections_df.columns:
-        st.error("The uploaded link sections file must contain a 'Link section' column.")
-        return None
+# Create a form to enter multiple link sections with input parameters
+link_sections_input = st.sidebar.text_area("Enter Link Sections (separate with commas)", "")
+link_section_list = [link.strip() for link in link_sections_input.split(',') if link.strip()]
 
-    # Extract unique link sections
-    link_sections = pd.Series(link_sections_df["Link section"].dropna().unique())  # Convert to pandas Series
+# Initialize the DataFrame to hold all link section results
+all_results = []
 
-    # Ensure required columns exist in the main data file
-    required_columns = [
-        "Link section", "Start Chainage", "End Chainage", "Lane", 
-        "Max Rut", "Texture", "Max LPV 3m", "Max LPV 10m"
-    ]
-    
-    missing_cols = [col for col in required_columns if col not in df.columns]
-    if missing_cols:
-        st.error(f"Missing columns in data file: {', '.join(missing_cols)}")
-        return None
+# PSV Table (to be uploaded by the user)
+uploaded_file = st.sidebar.file_uploader("Upload your Excel file with PSV table", type=["xlsx"])
 
-    # Filter data based on link sections
-    df_filtered = df[df["Link section"].isin(link_sections)]
+def roundup(value):
+    return math.ceil(value)
 
-    if df_filtered.empty:
-        st.warning("No matching link sections found in the data file.")
-        return None
+# Process each link section
+for link_section in link_section_list:
+    # User inputs for the current link section
+    aadt_value = st.sidebar.number_input(f"Enter AADT for {link_section}:", min_value=0, key=f"aadt_{link_section}")
+    per_hgvs = st.sidebar.number_input(f"Enter % of HGVs for {link_section}:", min_value=0, key=f"per_hgvs_{link_section}")
+    year = st.sidebar.number_input(f"Enter Year for {link_section}:", min_value=0, key=f"year_{link_section}")
+    lanes = st.sidebar.number_input(f"Enter number of lanes for {link_section}:", min_value=1, key=f"lanes_{link_section}")
 
-    # Initialize a new column for the failure criterion
-    df_filtered['Failure Criterion'] = None
-
-    # Apply failure conditions and assign failure criteria
-    df_filtered.loc[df_filtered["Max Rut"] >= 15, 'Failure Criterion'] = 'Rut Failure'
-    df_filtered.loc[df_filtered["Texture"] < 0.8, 'Failure Criterion'] = 'Texture Failure'
-    df_filtered.loc[
-        (df_filtered["Max LPV 3m"] > 3.9) & (df_filtered["Max LPV 3m"] < 5.5), 
-        'Failure Criterion'] = 'LPV 3m Failure'
-    df_filtered.loc[
-        (df_filtered["Max LPV 10m"] > 15.7) & (df_filtered["Max LPV 10m"] < 22.8), 
-        'Failure Criterion'] = 'LPV 10m Failure'
-
-    # Filter rows where any failure criterion is applied
-    failing_rows = df_filtered[df_filtered['Failure Criterion'].notnull()]
-
-    # Handle non-failing sections only if failing_rows is not empty
-    if not failing_rows.empty:
-        non_failing_sections = link_sections[~link_sections.isin(failing_rows["Link section"])]
+    # Design period
+    if year == 0:
+        design_period = 0
     else:
-        non_failing_sections = link_sections
+        design_period = ((20 + 2025) - year)
 
-    # Create rows for non-failing sections
-    no_failure_rows = pd.DataFrame({
-        "Link section": non_failing_sections,
-        "Start Chainage": ["N/A"] * len(non_failing_sections),
-        "End Chainage": ["N/A"] * len(non_failing_sections),
-        "Lane": ["N/A"] * len(non_failing_sections),
-        "Max Rut": ["N/A"] * len(non_failing_sections),
-        "Texture": ["N/A"] * len(non_failing_sections),
-        "Max LPV 3m": ["N/A"] * len(non_failing_sections),
-        "Max LPV 10m": ["N/A"] * len(non_failing_sections),
-        "Failure Criterion": ["NO TRACS FAILURE"] * len(non_failing_sections)
+    # AADT_HGVS Calculation
+    if per_hgvs >= 11:
+        AADT_HGVS = (per_hgvs * (aadt_value / 100))
+    else:
+        AADT_HGVS = (11 * aadt_value) / 100
+
+    total_projected_aadt_hgvs = AADT_HGVS * (1 + 1.54 / 100) ** design_period
+    AADT_HGVS = round(AADT_HGVS)
+    total_projected_aadt_hgvs = round(total_projected_aadt_hgvs)
+
+    # Lane calculation
+    lane1, lane2, lane3, lane4 = 0, 0, 0, 0
+    lane_details_lane1, lane_details_lane2, lane_details_lane3, lane_details_lane4 = 0, 0, 0, 0
+    
+    if lanes == 1:
+        lane1 = 100
+        lane_details_lane1 = total_projected_aadt_hgvs
+    elif lanes > 1 and lanes <= 3:
+        if total_projected_aadt_hgvs < 5000:
+            lane1 = round(100 - (0.0036 * total_projected_aadt_hgvs))
+            lane2 = round(100 - lane1)
+        elif total_projected_aadt_hgvs >= 5000 and total_projected_aadt_hgvs < 25000:
+            lane1 = round(89 - (0.0014 * total_projected_aadt_hgvs))
+            lane2 = round(100 - lane1)
+        else:
+            lane1 = 54
+            lane2 = 100 - 54
+        lane_details_lane1 = round(total_projected_aadt_hgvs * (lane1 / 100))
+        lane_details_lane2 = round(total_projected_aadt_hgvs * (lane2 / 100))
+
+    elif lanes >= 4:
+        if total_projected_aadt_hgvs <= 10500:
+            lane1 = round(100 - (0.0036 * total_projected_aadt_hgvs))
+            lane_2_3 = total_projected_aadt_hgvs - ((total_projected_aadt_hgvs * lane1) / 100)
+            lane2 = round(89 - (0.0014 * lane_2_3))
+            lane3 = 100 - lane2
+            lane4 = 0
+        elif total_projected_aadt_hgvs > 10500 and total_projected_aadt_hgvs < 25000:
+            lane1 = round(75 - (0.0012 * total_projected_aadt_hgvs))
+            lane_2_3 = total_projected_aadt_hgvs - ((total_projected_aadt_hgvs * lane1) / 100)
+            lane2 = round(89 - (0.0014 * lane_2_3))
+            lane3 = 100 - lane2
+            lane4 = 0
+        else:
+            lane1 = 45
+            lane2 = 54
+            lane3 = 100 - 54
+        lane_details_lane1 = round(total_projected_aadt_hgvs * (lane1 / 100))
+        lane_details_lane2 = round((total_projected_aadt_hgvs - lane_details_lane1) * (lane2 / 100))
+        lane_details_lane3 = round(total_projected_aadt_hgvs - (lane_details_lane1 + lane_details_lane2))
+
+    # PSV calculation (with placeholders if no data is uploaded)
+    result, result2, result3 = 'NA', 'NA', 'NA'
+
+    # If PSV table is uploaded, read and search for the matching values
+    if uploaded_file is not None:
+        df = pd.read_excel(uploaded_file)
+
+        # Example logic: using site category and IL value from the uploaded table
+        value1 = st.sidebar.text_input(f"Enter Site Category for {link_section}:")
+        value2 = st.sidebar.number_input(f"Enter IL value for {link_section}:")
+        
+        # Placeholder search logic based on the uploaded table
+        # Assume `df` contains columns `SiteCategory`, `IL`, and columns with ranges for PSV calculation
+        if not df.empty:
+            # For Lane 1 PSV (example of how to look up the value)
+            for col in df.columns:
+                if '-' in col:
+                    col_range = list(map(int, col.split('-')))
+                    if col_range[0] <= lane_details_lane1 <= col_range[1]:
+                        range_column = col
+                        filtered_df = df[(df['SiteCategory'] == value1) & (df['IL'] == value2)]
+                        if not filtered_df.empty:
+                            result = filtered_df.iloc[0][range_column]
+                            break
+        # Add similar logic for Lane 2 and Lane 3 if needed
+
+    # Store the results in the list for all link sections
+    all_results.append({
+        'Link Section': link_section,
+        'AADT_HGVS': AADT_HGVS,
+        'Design Period': design_period,
+        'Total Projected AADT HGVs': total_projected_aadt_hgvs,
+        'Lane 1': lane1,
+        'Lane 2': lane2,
+        'Lane 3': lane3,
+        'Lane 4': lane4,
+        'Lane 1 Details': lane_details_lane1,
+        'Lane 2 Details': lane_details_lane2,
+        'Lane 3 Details': lane_details_lane3,
+        'Lane 4 Details': lane_details_lane4,
+        'PSV Lane 1': result,
+        'PSV Lane 2': result2,
+        'PSV Lane 3': result3,
     })
 
-    # Combine failing rows and non-failing rows
-    all_results = pd.concat([failing_rows, no_failure_rows])
+# Convert the results list into a DataFrame
+df_results = pd.DataFrame(all_results)
 
-    # Reorder columns to place "Failure Criterion" to the right of "Link section"
-    column_order = [
-        "Link section", "Failure Criterion", "Start Chainage", "End Chainage", "Lane",
-        "Max Rut", "Texture", "Max LPV 3m", "Max LPV 10m"
-    ]
-    all_results = all_results[column_order]
+# Display the DataFrame on the Streamlit page
+st.write("PSV Results Output", df_results)
 
-    return all_results if not all_results.empty else None
+# Convert the DataFrame to CSV
+csv_data = df_results.to_csv(index=False)
 
-# Streamlit UI
-st.title("TRACS Failure Analysis")
-st.write("Upload your **data file (CSV format)** and **list of link sections** to analyze.")
-
-# File Uploads
-data_file = st.file_uploader("Upload Data File (CSV)", type=["csv"])
-link_sections_file = st.file_uploader("Upload Link Sections File (CSV)", type=["csv"])
-
-if data_file and link_sections_file:
-    st.success("Files uploaded successfully. Click the button to analyze.")
-    
-    if st.button("Analyze TRACS Failure"):
-        result = analyze_tracs_failure(data_file, link_sections_file)
-
-        if result is not None:
-            st.subheader("TRACS Failure Analysis Results")
-            st.dataframe(result)  # Show data in table
-
-            # Convert DataFrame to CSV
-            csv_buffer = BytesIO()
-            result.to_csv(csv_buffer, index=False)
-            csv_buffer.seek(0)
-
-            st.download_button(
-                label="Download TRACS Failure Report",
-                data=csv_buffer,
-                file_name="TRACS_Failure_Report.csv",
-                mime="text/csv"
-            )
-        else:
-            st.success("No TRACS failure detected!")
+# Create a download button for the CSV file
+st.download_button(
+    label="Download Results as CSV",
+    data=csv_data,
+    file_name='psv_results.csv',
+    mime='text/csv'
+)
